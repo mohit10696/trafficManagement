@@ -13,6 +13,7 @@ for each four lane
 import cv2
 import numpy as np
 from sklearn.externals import joblib
+from threading import *
 import time
 import yolo_main
 from flask import Flask, render_template, Response
@@ -32,14 +33,24 @@ def calcFrame(x, y):
     return frame_time
 
 
-def process(frame):
+x = 2
+def process(frame,lane):
+    global x
+    if lane == 1:
+        if x == 2:
+            x=1
+        else:
+            x=2
     vidClone = frame.copy()
+    #cv2.imwrite('image.png',vidClone)
+    filepath = 'TrafficImages\lane'+str(lane)+'\image'+str(x)+'.png'
+    cv2.imwrite(filepath,vidClone)
     print("entered for processing")
     #Finding the roi#
     roi=np.zeros((frame.shape[0],frame.shape[1]),"uint8")
     cv2.rectangle(roi, (62, 60), (242, 180), 255, -1)
     frame=cv2.bitwise_and(frame,frame,mask=roi)
-
+    
     #Yolo Logic#
     num=yolo_main.detect(frame)
     print("detected vehicles",num)
@@ -47,7 +58,7 @@ def process(frame):
     arr=arr.reshape(-1,1)
 
     #Obtaining the time#
-    time = int(model.predict(arr))
+    time = int(model.predict(arr)*0.5)
     print("predicted time is",time)
 
     
@@ -59,16 +70,15 @@ def process(frame):
 def get_frame():
 
     
-    vid1 = cv2.VideoCapture('TrafficDataSet.mp4')
-    vid2 = cv2.VideoCapture('TrafficDataSet.mp4')
-    vid3 = cv2.VideoCapture('TrafficDataSet.mp4')
-    vid4 = cv2.VideoCapture('TrafficDataSet.mp4')
-    _, frame1 = vid1.read()
+    vid1 = cv2.VideoCapture('latestData.mp4')
+    vid2 = cv2.VideoCapture('latestData.mp4')
+    vid3 = cv2.VideoCapture('latestData.mp4')
+    vid4 = cv2.VideoCapture('latestData.mp4')
+    _, frame1 = vid2.read()
     temp = np.zeros(frame1.shape,"uint8")
-    timer = temp.copy()
+    
+    li=[[5,49],[7,32],[9,4],[10,43],[12,14],[14,3],[15,46],[2,20],[17,17]]
     index=0
-    li=[[2,37],[2,52],[4,1],[7,30],[8,51],[10,8],[11,8],[12,21],[14,6],[15,34]]
-
     red_img=cv2.imread("traffic_lights/red.png")
     yellow_img=cv2.imread("traffic_lights/yellow.png")
     green_img=cv2.imread("traffic_lights/green.png")
@@ -88,39 +98,39 @@ def get_frame():
         _, frame1 = vid1.read()
         
         
-        index=(index+1)%10
+        index=(index+1)%9
         #For lane2 #
         lane2_start_time = calcFrame(li[index][0],li[index][1])
         print("index",index)
         vid2.set(1, lane2_start_time)
         _, frame2 = vid2.read()
 
-        index=(index+1)%10
+        index=(index+1)%9
         #For lane3#
         lane3_start_time = calcFrame(li[index][0],li[index][1])
         print("index",index)
         vid3.set(1, lane3_start_time)
         _, frame3 = vid3.read()
 
-        index=(index+1)%10
+        index=(index+1)%9
         #For lane4#
         lane4_start_time = calcFrame(li[index][0],li[index][1])
         print("index",index)
         vid4.set(1, lane4_start_time)
         _, frame4 = vid4.read()
 
-        index=(index+1)%10
+        index=(index+1)%9
         # display window. fWin is the final Video#
-        st0 = np.hstack((temp, frame1, temp))
-        st1 = np.hstack((frame4, timer, frame2))
-        st2 = np.hstack((temp, frame3, temp))
-        fWin = np.vstack((st0, st1, st2))
+        # st0 = np.hstack((temp, frame1, temp))
+        # st1 = np.hstack((frame4, temp, frame2))
+        # st2 = np.hstack((temp, frame3, temp))
+        # fWin = np.vstack((st0, st1, st2))
 
         #------------DEBUG1-----------#
-        print(temp.shape,st0.shape,red_img.shape)
+        #print(temp.shape,st0.shape,red_img.shape)
         next_predected_time = 0
         if next_predected_time == 0:
-            predected_time = int(process(frame1))
+            predected_time = int(process(frame1,1))
         else:
             predected_time = int(next_predected_time)
 
@@ -131,9 +141,9 @@ def get_frame():
         while (time.time()-t0<=predected_time):
             rem_time=predected_time-(time.time()-t0)
             print("frame 1")
-            ret1, frame1 = vid1.read()
+            _, frame1 = vid1.read()
             st0 = np.hstack((temp, frame1, temp))
-            st1 = np.hstack((frame4, timer, frame2))
+            st1 = np.hstack((frame4, temp, frame2))
             st2 = np.hstack((temp, frame3, temp))
 
             if rem_time<7:
@@ -161,9 +171,12 @@ def get_frame():
             
             if int(rem_time)==5:
                 print("processing frame 2")
-                next_predected_time=(process(frame2))
+                next_predected_time=(process(frame2,2))
             print(rem_time)
-
+            if int(rem_time)==4:
+                print("Checking for congestion")
+                filepath = 'TrafficImages\lane1\pachinu.png'
+                cv2.imwrite(filepath,frame1)
         predected_time=next_predected_time
 
 
@@ -176,7 +189,7 @@ def get_frame():
             print("frame 2")
             ret2, frame2 = vid2.read()
             st0 = np.hstack((temp, frame1, temp))
-            st1 = np.hstack((frame4, timer, frame2))
+            st1 = np.hstack((frame4, temp, frame2))
             st2 = np.hstack((temp, frame3, temp))
             
 
@@ -201,7 +214,7 @@ def get_frame():
             
             if int(rem_time) == 5:
                 print("processing frame3")
-                next_predected_time = (process(frame3))
+                next_predected_time = (process(frame3,3))
             print(rem_time)
 
         predected_time=next_predected_time
@@ -217,7 +230,7 @@ def get_frame():
             print("frame 3")
             ret2, frame3 = vid3.read()
             st0 = np.hstack((temp, frame1, temp))
-            st1 = np.hstack((frame4, timer, frame2))
+            st1 = np.hstack((frame4, temp, frame2))
             st2 = np.hstack((temp, frame3, temp))
 
             if rem_time<7:
@@ -238,7 +251,7 @@ def get_frame():
             
             if int(rem_time) == 5:
                 print("processing frame4")
-                next_predected_time = process(frame4)
+                next_predected_time = process(frame4,4)
             print(rem_time)
 
         predected_time=next_predected_time
@@ -252,7 +265,7 @@ def get_frame():
             print("frame 4")
             ret2, frame4 = vid4.read()
             st0 = np.hstack((temp, frame1, temp))
-            st1 = np.hstack((frame4, timer, frame2))
+            st1 = np.hstack((frame4, temp, frame2))
             st2 = np.hstack((temp, frame3, temp))
             if rem_time<7:
                 testing = np.hstack((red_img,red_img,red_img,yellow_img))
@@ -272,7 +285,7 @@ def get_frame():
             rem_time = predected_time - (time.time() - t0)
             if int(rem_time) == 5:
                 print("processing frame 1")
-                next_predected_time = process(frame1)
+                next_predected_time = process(frame1,1)
             print(rem_time)
 
 @app.route('/calc')
